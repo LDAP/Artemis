@@ -376,8 +376,8 @@ public class CourseService {
         ZonedDateTime startDate = localStartDate.atZone(zone).minusWeeks(11 + (12 * (-periodIndex))).withHour(0).withMinute(0).withSecond(0).withNano(0);
         ZonedDateTime endDate = periodIndex != 0 ? localEndDate.atZone(zone).minusWeeks(12 * (-periodIndex)).withHour(23).withMinute(59).withSecond(59)
                 : localEndDate.atZone(zone).withHour(23).withMinute(59).withSecond(59);
-        // List<Map<String, Object>> outcome = courseRepository.getCourseStatistics(courseId, startDate, endDate);
-        // List<Map<String, Object>> distinctOutcome = removeDuplicatesFromMapList(outcome, startDate);
+        List<Map<String, Object>> outcome = courseRepository.getCourseStatistics(courseId, startDate, endDate);
+        List<Map<String, Object>> distinctOutcome = removeDuplicatesFromMapList(outcome, startDate);
         // return createResultArray(outcome2, endDate);
 
         List<Map<String, Object>> outcome2 = courseRepository.getCourseStatistics2(courseId, startDate, endDate);
@@ -453,7 +453,9 @@ public class CourseService {
         Arrays.fill(result, 0);
         int week;
         for (Map<String, Object> map : outcome) {
-            ZonedDateTime date = (ZonedDateTime) map.get("date");
+            String stringDate = (String) map.get("date");
+            // ZonedDateTime date = ZonedDateTime.parse(stringDate, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            ZonedDateTime date = ZonedDateTime.parse(stringDate + "T00:00");
             int amount = map.get("users") != null ? ((Long) map.get("users")).intValue() : 0;
             week = getWeekOfDate(date);
             for (int i = 0; i < result.length; i++) {
