@@ -3,6 +3,7 @@ package de.tum.in.www1.artemis.service;
 import static de.tum.in.www1.artemis.domain.enumeration.AssessmentType.AUTOMATIC;
 
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalField;
 import java.time.temporal.WeekFields;
 import java.util.*;
@@ -454,8 +455,7 @@ public class CourseService {
         int week;
         for (Map<String, Object> map : outcome) {
             String stringDate = (String) map.get("date");
-            // ZonedDateTime date = ZonedDateTime.parse(stringDate, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            ZonedDateTime date = ZonedDateTime.parse(stringDate + "T00:00");
+            ZonedDateTime date = LocalDate.parse(stringDate, DateTimeFormatter.ofPattern("uuuu-MM-dd")).atStartOfDay(ZoneId.of("UTC"));
             int amount = map.get("users") != null ? ((Long) map.get("users")).intValue() : 0;
             week = getWeekOfDate(date);
             for (int i = 0; i < result.length; i++) {
