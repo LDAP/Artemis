@@ -2,13 +2,11 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription, of } from 'rxjs';
 import { tap, map, switchMap, filter } from 'rxjs/operators';
 import { NgbModalRef } from '@ng-bootstrap/ng-bootstrap';
-import { JhiLanguageService } from 'ng-jhipster';
+import { JhiAlertService, JhiLanguageService } from 'ng-jhipster';
 import { SessionStorageService } from 'ngx-webstorage';
-
 import { User } from 'app/core/user/user.model';
 import { JhiLanguageHelper } from 'app/core/language/language.helper';
 import { GuidedTourService } from 'app/guided-tour/guided-tour.service';
-
 import { SERVER_API_URL, VERSION } from 'app/app.constants';
 import * as moment from 'moment';
 import { ParticipationWebsocketService } from 'app/overview/participation-websocket.service';
@@ -20,6 +18,10 @@ import { ExamParticipationService } from 'app/exam/participate/exam-participatio
 import { Exam } from 'app/entities/exam.model';
 import { ArtemisServerDateService } from 'app/shared/server-date.service';
 import { LocaleConversionService } from 'app/shared/service/locale-conversion.service';
+import { CourseManagementService } from 'app/course/manage/course-management.service';
+import { Course } from 'app/entities/course.model';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { onError } from 'app/shared/util/global.utils';
 
 @Component({
     selector: 'jhi-navbar',
@@ -59,6 +61,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
         private route: ActivatedRoute,
         private examParticipationService: ExamParticipationService,
         private serverDateService: ArtemisServerDateService,
+        private jhiAlertService: JhiAlertService,
+        private courseManagementService: CourseManagementService,
     ) {
         this.version = VERSION ? VERSION : '';
         this.isNavbarCollapsed = true;
@@ -101,6 +105,23 @@ export class NavbarComponent implements OnInit, OnDestroy {
         }
     }
 
+    breadcrumbTranslation = {
+        new: 'global.generic.create',
+        edit: 'global.generic.edit',
+        audits: 'audits.title',
+        configuration: 'configuration.title',
+        feature_toggles: 'featureToggles.title',
+        health: 'health.title',
+        logs: 'logs.title',
+        docs: 'global.menu.admin.apidocs',
+        metrics: 'metrics.title',
+        user_statistics: 'statistics.title',
+        user_user_management: 'userManagement.home.title',
+        system_notification_management: 'artemisApp.systemNotification.systemNotifications',
+        upcoming_exams_and_exercises: 'artemisApp.upcomingExamsAndExercises.upcomingExamsAndExercises',
+        course_management: 'artemisApp.course.home.title',
+    };
+
     buildBreadcrumbs(fullURI: string) {
         this.breadcrumbs = [];
 
@@ -111,6 +132,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
         // Go through all parts (children) of the route starting from the root
         let path = '';
+        let lastPart = '';
+        let index = 0;
         let child = this.route.root.firstChild;
         while (child) {
             if (!child.snapshot.url || child.snapshot.url.length === 0) {
@@ -119,51 +142,57 @@ export class NavbarComponent implements OnInit, OnDestroy {
                 continue;
             }
 
-            // Manually defined breadcrumbs take precedence
-            const staticBreadcrumbs = child.snapshot.data['breadcrumbs'];
-            if (staticBreadcrumbs && staticBreadcrumbs.length > 0) {
-                for (const crumb of staticBreadcrumbs) {
-                    if (crumb['label']) {
-                        path += crumb['path'] + '/';
-                        this.addBreadcrumb(path, crumb['label'], true);
-                    } else {
-                        const label = this.resolveObjectData(child.snapshot.data, crumb['variable'].split('.'));
-                        path += this.resolveObjectData(child.snapshot.data, crumb['path'].split('.')) + '/';
-                        this.addBreadcrumb(path, label, false);
-                    }
+            for (const urlSegment of child.snapshot.url) {
+                // Replaces all '-' with '_' because .replace only replaced once
+                const part = urlSegment.toString().split('-').join('_');
+                path += part + '/';
+
+                let label = '';
+                let translate = false;
+                switch (lastPart) {
+                    case 'course_management':
+                        this.courseManagementService.find(Number(part)).subscribe(
+                            (response: HttpResponse<Course>) => {
+                                this.addBreadcrumb(path, response.body?.title ?? '', index++, false);
+                            },
+                            (error: HttpErrorResponse) => onError(this.jhiAlertService, error),
+                        );
+                        break;
+                    case 'exams':
+                        label = part; // fetch from id
+                        this.addBreadcrumb(path, label, index++, translate);
+                        break;
+                    case 'user_management':
+                        label = part; // fetch from id
+                        this.addBreadcrumb(path, label, index++, translate);
+                        break;
+                    case 'system_notification_management':
+                        label = part; // fetch from id
+                        this.addBreadcrumb(path, label, index++, translate);
+                        break;
+                    default:
+                        if (this.breadcrumbTranslation[part]) {
+                            label = this.breadcrumbTranslation[part];
+                            translate = true;
+                        }
+
+                        this.addBreadcrumb(path, label, index++, translate);
+                        break;
                 }
-                child = child.firstChild;
-                continue;
+
+                lastPart = part;
             }
 
-            const part = child.snapshot.url.join('/').toString();
-            let previousPath = path;
-            path += part + '/';
-            if (child.snapshot.data['breadcrumbLabelVariable']) {
-                const label = this.resolveObjectData(child.snapshot.data, child.snapshot.data['breadcrumbLabelVariable'].split('.'));
-                this.addBreadcrumb(path, label, false);
-            } else if (child.snapshot.data['usePathForBreadcrumbs']) {
-                // This can be removed once all routes have been ported to use children
-                for (const urlPart of child.snapshot.url) {
-                    const label = urlPart.toString();
-                    previousPath += label + '/';
-                    this.addBreadcrumb(previousPath, label, false);
-                }
-            } else if (child.snapshot.data['pageTitle']) {
-                this.addBreadcrumb(path, child.snapshot.data['pageTitle'], true);
-            } else {
-                this.addBreadcrumb(path, part, false);
-            }
             child = child.firstChild;
         }
     }
 
-    addBreadcrumb(uri: string, label: string, translate: boolean) {
+    addBreadcrumb(uri: string, label: string, index: number, translate: boolean) {
         const crumb = new Breadcrumb();
         crumb.label = label;
         crumb.translate = translate;
         crumb.uri = uri;
-        this.breadcrumbs[this.breadcrumbs.length] = crumb;
+        this.breadcrumbs[index] = crumb;
     }
 
     resolveObjectData(object: object, names: string[]): string {
