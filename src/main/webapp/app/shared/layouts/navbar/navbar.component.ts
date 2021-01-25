@@ -145,14 +145,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
             for (const urlSegment of child.snapshot.url) {
                 // Replaces all '-' with '_' because .replace only replaced once
                 const part = urlSegment.toString().split('-').join('_');
+                console.log(part);
                 path += part + '/';
 
                 let label = '';
                 let translate = false;
                 switch (lastPart) {
                     case 'course_management':
+                        console.log('course_management');
                         this.courseManagementService.find(Number(part)).subscribe(
                             (response: HttpResponse<Course>) => {
+                                console.log(response.body);
                                 this.addBreadcrumb(path, response.body?.title ?? '', index++, false);
                             },
                             (error: HttpErrorResponse) => onError(this.jhiAlertService, error),
@@ -171,15 +174,18 @@ export class NavbarComponent implements OnInit, OnDestroy {
                         this.addBreadcrumb(path, label, index++, translate);
                         break;
                     default:
+                        console.log('default: ' + lastPart);
                         if (this.breadcrumbTranslation[part]) {
                             label = this.breadcrumbTranslation[part];
                             translate = true;
+                            console.log('label: ' + label);
                         }
 
                         this.addBreadcrumb(path, label, index++, translate);
                         break;
                 }
 
+                console.log('hey! ' + part);
                 lastPart = part;
             }
 
