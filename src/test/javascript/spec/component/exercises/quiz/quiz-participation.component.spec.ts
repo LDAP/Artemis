@@ -1,7 +1,7 @@
 import * as chai from 'chai';
 import * as sinonChai from 'sinon-chai';
 import * as sinon from 'sinon';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, getTestBed, TestBed } from '@angular/core/testing';
 import { MockComponent, MockDirective, MockPipe } from 'ng-mocks';
 import { AlertComponent } from 'app/shared/alert/alert.component';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
@@ -22,6 +22,11 @@ import { MockLocalStorageService } from '../../../helpers/mocks/service/mock-loc
 import { LocalStorageService, SessionStorageService } from 'ngx-webstorage';
 import { MockSyncStorage } from '../../../helpers/mocks/service/mock-sync-storage.service';
 import { MockTranslateService } from '../../../helpers/mocks/service/mock-translate.service';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { SERVER_API_URL } from 'app/app.constants';
+import { StudentParticipation } from 'app/entities/participation/student-participation.model';
+import { QuizExercise } from 'app/entities/quiz/quiz-exercise.model';
+import { QuizQuestion, QuizQuestionType } from 'app/entities/quiz/quiz-question.model';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -30,10 +35,16 @@ describe('QuizParticipationComponent', () => {
     let fixture: ComponentFixture<QuizParticipationComponent>;
     let component: QuizParticipationComponent;
     let participationService: QuizParticipationService;
+    let httpMock: HttpTestingController;
+
+    const question1 = { id: 1, type: QuizQuestionType.DRAG_AND_DROP, score: 1 } as QuizQuestion;
+    const question2 = { id: 2, type: QuizQuestionType.MULTIPLE_CHOICE, score: 2 } as QuizQuestion;
+    const question3 = { id: 3, type: QuizQuestionType.SHORT_ANSWER, score: 3 } as QuizQuestion;
+    const quizExercise = (<any>{ id: 2, quizQuestions: [question1, question2, question3] }) as QuizExercise;
 
     beforeEach(() => {
         TestBed.configureTestingModule({
-            imports: [ArtemisTestModule],
+            imports: [ArtemisTestModule, HttpClientTestingModule],
             declarations: [
                 QuizParticipationComponent,
                 MockComponent(AlertComponent),
@@ -51,7 +62,7 @@ describe('QuizParticipationComponent', () => {
                 {
                     provide: ActivatedRoute,
                     useValue: {
-                        params: of({ courseId: 1, exerciseId: 2 }),
+                        params: of({ courseId: 1, exerciseId: quizExercise.id }),
                         data: of({ mode: 'live' }),
                     },
                 },
@@ -73,16 +84,38 @@ describe('QuizParticipationComponent', () => {
             .then(() => {
                 fixture = TestBed.createComponent(QuizParticipationComponent);
                 component = fixture.componentInstance;
-                participationService = fixture.debugElement.injector.get(QuizParticipationService);
+
+                const injector = getTestBed();
+                participationService = injector.get(QuizParticipationService);
+                httpMock = injector.get(HttpTestingController);
             });
     });
 
     afterEach(function () {
+        httpMock.verify();
         sinon.restore();
     });
 
     it('should initialize', () => {
         fixture.detectChanges();
         expect(component).to.be.ok;
+    });
+
+    it('should fetch exercise and create a new submission', () => {
+        fixture.detectChanges();
+
+        const request = httpMock.expectOne({ method: 'GET' });
+        request.flush({ exercise: quizExercise } as StudentParticipation);
+        expect(request.request.url).to.equal(SERVER_API_URL + `api/exercises/${quizExercise.id}/participation`);
+
+        fixture.detectChanges();
+
+        expect(component.quizExercise).to.equal(quizExercise);
+        expect(component.waitingForQuizStart).to.be.true;
+        expect(component.totalScore).to.equal(6);
+        expect(component.dragAndDropMappings.get(question1.id!)).to.deep.equal([]);
+        expect(component.selectedAnswerOptions.get(question2.id!)).to.deep.equal([]);
+        expect(component.shortAnswerSubmittedTexts.get(question3.id!)).to.deep.equal([]);
+        expect(component.submission).to.be.ok;
     });
 });
