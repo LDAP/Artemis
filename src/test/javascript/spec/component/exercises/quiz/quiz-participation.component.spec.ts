@@ -1,7 +1,8 @@
 import * as chai from 'chai';
 import * as sinonChai from 'sinon-chai';
 import * as sinon from 'sinon';
-import { ComponentFixture, getTestBed, TestBed } from '@angular/core/testing';
+import * as moment from 'moment';
+import { ComponentFixture, discardPeriodicTasks, fakeAsync, getTestBed, TestBed, tick } from '@angular/core/testing';
 import { MockComponent, MockDirective, MockPipe } from 'ng-mocks';
 import { AlertComponent } from 'app/shared/alert/alert.component';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
@@ -37,10 +38,19 @@ describe('QuizParticipationComponent', () => {
     let participationService: QuizParticipationService;
     let httpMock: HttpTestingController;
 
+    const now = moment();
     const question1 = { id: 1, type: QuizQuestionType.DRAG_AND_DROP, score: 1 } as QuizQuestion;
     const question2 = { id: 2, type: QuizQuestionType.MULTIPLE_CHOICE, score: 2 } as QuizQuestion;
     const question3 = { id: 3, type: QuizQuestionType.SHORT_ANSWER, score: 3 } as QuizQuestion;
-    const quizExercise = (<any>{ id: 2, quizQuestions: [question1, question2, question3] }) as QuizExercise;
+    const quizExercise = (<any>{
+        id: 2,
+        quizQuestions: [question1, question2, question3],
+        releaseDate: now.subtract(2, 'minutes'),
+        adjustedReleaseDate: now.subtract(2, 'minutes'),
+        dueDate: now.add(2, 'minutes'),
+        adjustedDueDate: now.add(2, 'minutes'),
+        started: true,
+    }) as QuizExercise;
 
     beforeEach(() => {
         TestBed.configureTestingModule({
@@ -96,14 +106,18 @@ describe('QuizParticipationComponent', () => {
         sinon.restore();
     });
 
+    afterEach(fakeAsync(function () {
+        discardPeriodicTasks();
+    }));
+
     it('should initialize', () => {
         fixture.detectChanges();
+        httpMock.expectOne({ method: 'GET' });
         expect(component).to.be.ok;
     });
 
     it('should fetch exercise and create a new submission', () => {
         fixture.detectChanges();
-
         const request = httpMock.expectOne({ method: 'GET' });
         request.flush({ exercise: quizExercise } as StudentParticipation);
         expect(request.request.url).to.equal(SERVER_API_URL + `api/exercises/${quizExercise.id}/participation`);
@@ -111,11 +125,24 @@ describe('QuizParticipationComponent', () => {
         fixture.detectChanges();
 
         expect(component.quizExercise).to.equal(quizExercise);
-        expect(component.waitingForQuizStart).to.be.true;
+        expect(component.waitingForQuizStart).to.be.false;
         expect(component.totalScore).to.equal(6);
         expect(component.dragAndDropMappings.get(question1.id!)).to.deep.equal([]);
         expect(component.selectedAnswerOptions.get(question2.id!)).to.deep.equal([]);
         expect(component.shortAnswerSubmittedTexts.get(question3.id!)).to.deep.equal([]);
         expect(component.submission).to.be.ok;
     });
+
+    it('should update in intervals', fakeAsync(() => {
+        fixture.detectChanges();
+        const request = httpMock.expectOne({ method: 'GET' });
+        request.flush({ exercise: quizExercise } as StudentParticipation);
+
+        const updateSpy = sinon.spy(component, 'updateDisplayedTimes');
+        tick(5000);
+        fixture.detectChanges();
+        discardPeriodicTasks();
+
+        expect(updateSpy).to.have.been.called;
+    }));
 });
