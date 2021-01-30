@@ -132,7 +132,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
         // Go through all parts (children) of the route starting from the root
         let path = '';
-        let lastPart = '';
+        let previousPart = '';
         let index = 0;
         let child = this.route.root.firstChild;
         while (child) {
@@ -150,7 +150,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
                 let label = '';
                 let translate = false;
-                switch (lastPart) {
+                switch (previousPart) {
                     case 'course_management':
                         console.log('course_management');
                         this.courseManagementService.find(Number(part)).subscribe(
@@ -170,11 +170,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
                         this.addBreadcrumb(path, label, index++, translate);
                         break;
                     case 'system_notification_management':
-                        label = part; // fetch from id
+                        // System notifications have no name, so we use the id directly
+                        translate = false;
+                        label = part;
                         this.addBreadcrumb(path, label, index++, translate);
                         break;
                     default:
-                        console.log('default: ' + lastPart);
+                        console.log('default: ' + previousPart);
                         if (this.breadcrumbTranslation[part]) {
                             label = this.breadcrumbTranslation[part];
                             translate = true;
@@ -186,7 +188,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
                 }
 
                 console.log('hey! ' + part);
-                lastPart = part;
+                previousPart = part;
             }
 
             child = child.firstChild;
@@ -199,13 +201,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
         crumb.translate = translate;
         crumb.uri = uri;
         this.breadcrumbs[index] = crumb;
-    }
-
-    resolveObjectData(object: object, names: string[]): string {
-        for (const variableName of names) {
-            object = object[variableName];
-        }
-        return object.toString();
     }
 
     /**
